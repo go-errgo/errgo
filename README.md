@@ -163,9 +163,10 @@ type Err struct {
 	// Underlying holds the underlying error, if any.
 	Underlying_ error
 
-	// Location holds the source code location where the error was
+	// File and Line identify the source code location where the error was
 	// created.
-	Location_ Location
+	File string
+	Line int
 }
 ```
 
@@ -200,7 +201,7 @@ error with %#v will produce useful information.
 #### func (*Err) Location
 
 ```go
-func (e *Err) Location() Location
+func (e *Err) Location() (file string, line int)
 ```
 Location implements Locationer.
 
@@ -226,40 +227,17 @@ func (e *Err) Underlying() error
 ```
 Underlying returns the underlying error if any.
 
-#### type Location
-
-```go
-type Location struct {
-	File string
-	Line int
-}
-```
-
-Location describes a source code location.
-
-#### func (Location) IsSet
-
-```go
-func (loc Location) IsSet() bool
-```
-IsSet reports whether the location has been set.
-
-#### func (Location) String
-
-```go
-func (loc Location) String() string
-```
-String returns a location in filename.go:99 format.
-
 #### type Locationer
 
 ```go
 type Locationer interface {
-	Location() Location
+	// Location returns the name of the file and the line
+	// number associated with an error.
+	Location() (file string, line int)
 }
 ```
 
-Location can be implemented by any error type that wants to expose the source
+Locationer can be implemented by any error type that wants to expose the source
 location of an error.
 
 #### type Wrapper
