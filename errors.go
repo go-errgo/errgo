@@ -323,12 +323,19 @@ func MaskFunc(allow ...func(error) bool) func(error, ...func(error) bool) error 
 // WithCausef returns a new Error that wraps the given
 // (possibly nil) underlying error and associates it with
 // the given cause. The given formatted message context
-// will also be added.
+// will also be added. If f is empty and has no arguments,
+// the message will be the same as the cause.
 func WithCausef(underlying, cause error, f string, a ...interface{}) error {
+	var msg string
+	if f == "" && len(a) == 0 && cause != nil {
+		msg = cause.Error()
+	} else {
+		msg = fmt.Sprintf(f, a...)
+	}
 	err := &Err{
 		Underlying_: underlying,
 		Cause_:      cause,
-		Message_:    fmt.Sprintf(f, a...),
+		Message_:    msg,
 	}
 	err.SetLocation(1)
 	return err
