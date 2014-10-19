@@ -251,6 +251,7 @@ func NoteMask(underlying error, msg string, pass ...func(error) bool) error {
 			log.Printf("new error %#v", newErr)
 		}
 	}
+	setLocation(newErr, 1)
 	return newErr
 }
 

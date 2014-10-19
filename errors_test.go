@@ -39,6 +39,15 @@ func (*errorsSuite) TestNewf(c *gc.C) {
 	checkErr(c, err, nil, "foo 5", "[{$TestNewf$: foo 5}]", err)
 }
 
+func (*errorsSuite) TestNoteMask(c *gc.C) {
+	err := errgo.NoteMask(someErr, "note", errgo.Is(someErr)) //err TestNoteMask
+
+	checkErr(c, err, someErr, "note: some error", "[{$TestNoteMask$: note} {$varSomeErr$: some error}]", someErr)
+
+	err = errgo.NoteMask(someErr, "note", func(error) bool { return false }) //err TestNoteMask2
+	checkErr(c, err, someErr, "note: some error", "[{$TestNoteMask2$: note} {$varSomeErr$: some error}]", err)
+}
+
 var someErr = errgo.New("some error") //err varSomeErr
 
 func annotate1() error {
