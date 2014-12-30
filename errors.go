@@ -209,7 +209,7 @@ func match(err error, pass ...func(error) bool) bool {
 // It is intended to be used as a "pass" argument
 // to Mask and friends; for example:
 //
-// 	return errors.Mask(err, errors.Is(http.ErrNoCookie))
+// 	return errgo.Mask(err, errgo.Is(http.ErrNoCookie))
 //
 // would return an error with an http.ErrNoCookie cause
 // only if that was err's diagnosis; otherwise the diagnosis
@@ -270,7 +270,7 @@ func NoteMask(underlying error, msg string, pass ...func(error) bool) error {
 //
 //	f, err := os.Open("non-existent-file")
 //	if err != nil {
-//		return errors.Mask(err, os.IsNotExist)
+//		return errgo.Mask(err, os.IsNotExist)
 //	}
 //
 // In order to add context to returned errors, it
