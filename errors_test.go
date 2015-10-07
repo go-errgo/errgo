@@ -82,6 +82,18 @@ func (*errorsSuite) TestNotef(c *gc.C) {
 	checkErr(c, err, nil, "bar", "[{$TestNotef#2$: bar}]", err)
 }
 
+func (*errorsSuite) TestNoteMask(c *gc.C) {
+	err0 := errgo.WithCausef(nil, someErr, "foo") //err TestNoteMask#0
+	err := errgo.NoteMask(err0, "bar")            //err TestNoteMask#1
+	checkErr(c, err, err0, "bar: foo", "[{$TestNoteMask#1$: bar} {$TestNoteMask#0$: foo}]", err)
+
+	err = errgo.NoteMask(err0, "bar", errgo.Is(someErr)) //err TestNoteMask#2
+	checkErr(c, err, err0, "bar: foo", "[{$TestNoteMask#2$: bar} {$TestNoteMask#0$: foo}]", someErr)
+
+	err = errgo.NoteMask(err0, "") //err TestNoteMask#3
+	checkErr(c, err, err0, "foo", "[{$TestNoteMask#3$: } {$TestNoteMask#0$: foo}]", err)
+}
+
 func (*errorsSuite) TestMaskFunc(c *gc.C) {
 	err0 := errgo.New("zero")
 	err1 := errgo.New("one")
