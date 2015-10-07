@@ -233,6 +233,15 @@ func Any(error) bool {
 // the result if allowed by the specific pass functions
 // (see Mask for an explanation of the pass parameter).
 func NoteMask(underlying error, msg string, pass ...func(error) bool) error {
+	err := noteMask(underlying, msg, pass...)
+	setLocation(err, 1)
+	return err
+}
+
+// noteMask is exactly like NoteMask except it doesn't set the location
+// of the returned error, so that we can avoid setting it twice
+// when it's used in other functions.
+func noteMask(underlying error, msg string, pass ...func(error) bool) error {
 	newErr := &Err{
 		Underlying_: underlying,
 		Message_:    msg,
@@ -251,6 +260,7 @@ func NoteMask(underlying error, msg string, pass ...func(error) bool) error {
 			log.Printf("new error %#v", newErr)
 		}
 	}
+	newErr.SetLocation(1)
 	return newErr
 }
 
@@ -281,7 +291,7 @@ func Mask(underlying error, pass ...func(error) bool) error {
 	if underlying == nil {
 		return nil
 	}
-	err := NoteMask(underlying, "", pass...)
+	err := noteMask(underlying, "", pass...)
 	setLocation(err, 1)
 	return err
 }
@@ -291,7 +301,7 @@ func Mask(underlying error, pass ...func(error) bool) error {
 // The returned error has no cause (use NoteMask
 // or WithCausef to add a message while retaining a cause).
 func Notef(underlying error, f string, a ...interface{}) error {
-	err := NoteMask(underlying, fmt.Sprintf(f, a...))
+	err := noteMask(underlying, fmt.Sprintf(f, a...))
 	setLocation(err, 1)
 	return err
 }
