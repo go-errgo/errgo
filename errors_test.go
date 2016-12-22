@@ -181,6 +181,14 @@ func (*errorsSuite) TestWithCausefNoMessage(c *gc.C) {
 	c.Assert(errgo.Cause(err), gc.Equals, cause)
 }
 
+func (*errorsSuite) TestWithCausefWithUnderlyingButNoMessage(c *gc.C) {
+	err := errgo.New("something")
+	cause := errgo.New("cause")
+	err = errgo.WithCausef(err, cause, "")
+	c.Assert(err, gc.ErrorMatches, "something")
+	c.Assert(errgo.Cause(err), gc.Equals, cause)
+}
+
 func (*errorsSuite) TestDetails(c *gc.C) {
 	c.Assert(errgo.Details(nil), gc.Equals, "[]")
 
