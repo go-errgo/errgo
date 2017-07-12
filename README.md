@@ -1,259 +1,140 @@
-# errgo
---
-    import "gopkg.in/errgo.v1"
+Package errgo provides some primitives for error creation and handling.
+
+It provides primitives for wrapping and annotating errors without exposing
+implementation details unnecessarily.
 
-The errgo package provides a way to create and diagnose errors. It is compatible
-with the usual Go error idioms but adds a way to wrap errors so that they record
-source location information while retaining a consistent way for code to inspect
-errors to find out particular problems.
+Error dependencies as code fragility
 
-## Usage
+If we import a package, how much of its exposed API are we entitled
+to use? Most packages do not explicitly document the set of possible
+public errors that can be returned from their functions, so if we see
+that a package returns a particular type or value, can we be blamed for
+writing code that relies on it?
 
-#### func  Any
+I cannot be the only one that has run a function that's returning an error
+I want to handle, looked at the error's type and added a test against
+that type.  That type isn't necessarily in the package that I'm calling,
+but may be several layers deeper than that.  Once that condition is there
+in the my code, it may be broken if any of the layers below it fails to
+preserve or generate the errors values my code is now expecting.
 
-```go
-func Any(error) bool
-```
-Any returns true. It can be used as an argument to Mask to allow any diagnosis
-to pass through to the wrapped error.
+For example, say I'm developing text-editor integration for my favourite
+cloud app. When using it to parse the app's configuration data, I find
+that it returns json.SyntaxError when there's a configuration error. I
+write code that, when it finds json.SyntaxError, jumps the editor cursor
+to the place where the error was found (by looking at SyntaxError.Offset).
 
-#### func  Cause
+Some time later, someone comes along and decides that encoding/json is
+too slow, and replaces it with xxx/fastjson.  Since encoding/json isn't
+in the public API surface area, this doesn't seem like a breaking change,
+so the change lands, but in actual fact my code is now broken.
 
-```go
-func Cause(err error) error
-```
-Cause returns the cause of the given error. If err does not implement Causer or
-its Cause method returns nil, it returns err itself.
+When code bases get sufficiently large, this makes refactoring code
+considerably more error-prone, because it is not always
+clear whether it's OK to change some code or not. The code
+is fragile.
 
-Cause is the usual way to diagnose errors that may have been wrapped by Mask or
-NoteMask.
+Wrapping breaks error dependencies
 
-#### func  Details
+A common idiom is to return an error "annotated" with some extra text
+to give it more context. If we do that, then we protect ourselves
+from the subtle breakage illustrated above, because callers *cannot*
+depend on the underlying error any more. If I want to add my feature,
+I need to notify upstream and tell them that I'd like to be able to
+find where the config file syntax error is, and they'll need to land a
+change that makes it explicitly available in the API. This is more work,
+but it means that the error type is now an explicit part of the API
+and hence much less likely to be changed in a backwardly incompatible
+way.
 
-```go
-func Details(err error) string
-```
-Details returns information about the stack of underlying errors wrapped by err,
-in the format:
+The problem with fmt.Errorf is that it hides even error causes that
+we *want* to expose. It's common to have a few well-known error
+return values
 
-    [{filename:99: error one} {otherfile:55: cause of error one}]
+I find a package
+that can talk to the app, and I find that when
 
-The details are found by type-asserting the error to the Locationer, Causer and
-Wrapper interfaces. Details of the underlying stack are found by recursively
-calling Underlying when the underlying error implements Wrapper.
 
-#### func  Is
+My code uses
+the tool's config p
 
-```go
-func Is(err error) func(error) bool
-```
-Is returns a function that returns whether the an error is equal to the given
-error. It is intended to be used as a "pass" argument to Mask and friends; for
-example:
 
-    return errgo.Mask(err, errgo.Is(http.ErrNoCookie))
+calling a package that uses (internally)
+encoding/json to parse its configuration format. I'm building
+an 
 
-would return an error with an http.ErrNoCookie cause only if that was err's
-diagnosis; otherwise the diagnosis would be itself.
 
-#### func  Mask
 
-```go
-func Mask(underlying error, pass ...func(error) bool) error
-```
-Mask returns an Err that wraps the given underyling error. The error message is
-unchanged, but the error location records the caller of Mask.
+Even if we're only importing
+a package for internal use, if we're returning its errors,
+we're exposing ourselves to that kind of 
 
-If err is nil, Mask returns nil.
+ example, changing to use
+a different package that's only used internally
+might end up breaking some other code that happens
+to be 
+if any of those
+layers changes to use a different lower layer,
+or 
 
-By default Mask conceals the cause of the wrapped error, but if pass(Cause(err))
-returns true for any of the provided pass functions, the cause of the returned
-error will be Cause(err).
+Fragility 1: "That code doesn't return that kind of error any more!"
 
-For example, the following code will return an error whose cause is the error
-from the os.Open call when (and only when) the file does not exist.
+Fragility 2: "I thought that error meant *this* not *that* as well!"
 
-    f, err := os.Open("non-existent-file")
-    if err != nil {
-        return errgo.Mask(err, os.IsNotExist)
-    }
 
-In order to add context to returned errors, it is conventional to call Mask when
-returning any error received from elsewhere.
+Some code makes a conditional test on an error.  It may compare the
+error for equality with a value defined in another package (io.EOF), or
+call a function (os.IsNotExist) or do a dynamic type comparison. There
+is a dependency made between the code doing the comparison and the code
+that defines the value, function or type. This dependency is not visible
+directly in any call graph but bugs and API incompatibilities can easily
+arise when dependencies change.
 
-#### func  MaskFunc
+Since errors can propagate back through many layers of stack and layers
+of abstraction (and are commonly returned exactly as received), a caller
+might be testing an error returned from a package that an intermediate
+package considers an implementation details.
 
-```go
-func MaskFunc(allow ...func(error) bool) func(error, ...func(error) bool) error
-```
-MaskFunc returns an equivalent of Mask that always allows the specified causes
-in addition to any causes specified when the returned function is called.
+Even though error values and types are not generally well documented
+(or perhaps *because* they're not), these dependencies arise commonly
+because, on finding some error that we want to handle, we will run the
+program or look at the code, then write a test against the type we see.
 
-It is defined for convenience, for example when all calls to Mask in a given
-package wish to allow the same set of causes to be returned.
+This 
 
-#### func  New
 
-```go
-func New(s string) error
-```
-New returns a new error with the given error message and no cause. It is a
-drop-in replacement for errors.New from the standard library.
-
-#### func  Newf
+and try to find something about the error that can be used to
+distinguish the problem we're seeing, and often that will involve
+a test against an error␣ value 
 
-```go
-func Newf(f string, a ...interface{}) error
-```
-Newf returns a new error with the given printf-formatted error message and no
-cause.
+I believe that most programmers
+will try to avoid string comparisons (known to be fragile), but testing
+against a known type seems more robust.
 
-#### func  NoteMask
 
-```go
-func NoteMask(underlying error, msg string, pass ...func(error) bool) error
-```
-NoteMask returns an Err that has the given underlying error, with the given
-message added as context, and allowing the cause of the underlying error to pass
-through into the result if allowed by the specific pass functions (see Mask for
-an explanation of the pass parameter).
+ diagnoses
+the problem what we're seeing.
 
-#### func  Notef
-
-```go
-func Notef(underlying error, f string, a ...interface{}) error
-```
-Notef returns an Error that wraps the given underlying error and adds the given
-formatted context message. The returned error has no cause (use NoteMask or
-WithCausef to add a message while retaining a cause).
+some kind of database
+package, and as part of that implementation, it uses an
+encoding package.
 
-#### func  WithCausef
+initially uses a file based store.
 
-```go
-func WithCausef(underlying, cause error, f string, a ...interface{}) error
-```
-WithCausef returns a new Error that wraps the given (possibly nil) underlying
-error and associates it with the given cause. The given formatted message
-context will also be added.
-
-#### type Causer
+It is currently very common to return exactly the error that was
 
-```go
-type Causer interface {
-	Cause() error
-}
-```
 
-Causer is the type of an error that may provide an error cause for error
-diagnosis. Cause may return nil if there is no cause (for example because the
-cause has been masked).
-
-#### type Err
+when encountering an error
 
-```go
-type Err struct {
-	// Message_ holds the text of the error message. It may be empty
-	// if Underlying is set.
-	Message_ string
-
-	// Cause_ holds the cause of the error as returned
-	// by the Cause method.
-	Cause_ error
-
-	// Underlying holds the underlying error, if any.
-	Underlying_ error
-
-	// File and Line identify the source code location where the error was
-	// created.
-	File string
-	Line int
-}
-```
-
-Err holds a description of an error along with information about where the error
-was created.
-
-It may be embedded in custom error types to add extra information that this
-errors package can understand.
-
-#### func (*Err) Cause
-
-```go
-func (e *Err) Cause() error
-```
-Cause implements Causer.
-
-#### func (*Err) Error
-
-```go
-func (e *Err) Error() string
-```
-Error implements error.Error.
-
-#### func (*Err) GoString
-
-```go
-func (e *Err) GoString() string
-```
-GoString returns the details of the receiving error message, so that printing an
-error with %#v will produce useful information.
-
-#### func (*Err) Location
-
-```go
-func (e *Err) Location() (file string, line int)
-```
-Location implements Locationer.
-
-#### func (*Err) Message
-
-```go
-func (e *Err) Message() string
-```
-Message returns the top level error message.
-
-#### func (*Err) SetLocation
-
-```go
-func (e *Err) SetLocation(callDepth int)
-```
-Locate records the source location of the error by setting e.Location, at
-callDepth stack frames above the call.
-
-#### func (*Err) Underlying
-
-```go
-func (e *Err) Underlying() error
-```
-Underlying returns the underlying error if any.
-
-#### type Locationer
-
-```go
-type Locationer interface {
-	// Location returns the name of the file and the line
-	// number associated with an error.
-	Location() (file string, line int)
-}
-```
-
-Locationer can be implemented by any error type that wants to expose the source
-location of an error.
-
-#### type Wrapper
-
-```go
-type Wrapper interface {
-	// Message returns the top level error message,
-	// not including the message from the underlying
-	// error.
-	Message() string
-
-	// Underlying returns the underlying error, or nil
-	// if there is none.
-	Underlying() error
-}
-```
-
-Wrapper is the type of an error that wraps another error. It is exposed so that
-external types may implement it, but should in general not be used otherwise.
+
+When code tests an error against a particular type or value
+to decide what to do
+
+
+The  is informed by the view that 
+
+hiding is important
+
+
+
+ It aims to decrease implicit inter-package dependency
