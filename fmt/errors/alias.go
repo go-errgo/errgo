@@ -1,28 +1,33 @@
 package errors
+
 import (
 	"gopkg.in/errgo.v2/errors"
 )
 
 type (
-	Causer = errors.Causer
-	Wrapper = errors.Wrapper
+	Causer     = errors.Causer
+	Wrapper    = errors.Wrapper
 	Locationer = errors.Locationer
 )
 
 // New returns a new error with the given error message and no cause. It
 // is a drop-in replacement for errors.New from the standard library.
 func New(s string) error {
-	return errors.New(s)
+	err := errors.New(s)
+	errors.SetLocation(err, 1)
+	return err
 }
 
 // Note returns a new error that wraps the given error
 // and holds information about the caller. It preserves the cause if
-// shouldPreserveCause is non-nil and pass(err) is true. If msg is
+// shouldPreserveCause is non-nil and shouldPreserveCause(err) is true. If msg is
 // non-empty, it is used to prefix the returned error's string value.
 //
-// If err is nil, Note returns nil without calling pass.
+// If err is nil, Note returns nil without calling shouldPreserveCause.
 func Note(err error, shouldPreserveCause func(error) bool, msg string) error {
-	return errors.Note(err, shouldPreserveCause, msg)
+	err = errors.Note(err, shouldPreserveCause, msg)
+	errors.SetLocation(err, 1)
+	return err
 }
 
 // Because returns a new error that wraps err and has the given cause,
@@ -36,14 +41,18 @@ func Note(err error, shouldPreserveCause func(error) bool, msg string) error {
 // Because returns a nil error if all of err, cause and msg are
 // zero.
 func Because(err, cause error, msg string) error {
-	return errors.Because(err, cause, msg)
+	err = errors.Because(err, cause, msg)
+	errors.SetLocation(err, 1)
+	return err
 }
 
 // Wrap returns a new error that wraps the given error and holds
 // information about the caller. It is equivalent to Note(err, nil, "").
 // Note that this means that the returned error has no cause.
 func Wrap(err error) error {
-	return errors.Wrap(err)
+	err = errors.Wrap(err)
+	errors.SetLocation(err, 1)
+	return err
 }
 
 // Cause returns the cause of the given error.  If err does not
