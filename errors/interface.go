@@ -21,9 +21,13 @@ type Wrapper interface {
 	Underlying() error
 }
 
-// Locationer can be implemented by any error type that wants to expose
+// Deprecated: Locationer is the old name for Locator,
+// kept for backward compatibility only.
+type Locationer = Locator
+
+// Locator can be implemented by any error type that wants to expose
 // the source location of an error.
-type Locationer interface {
+type Locator interface {
 	// Location returns the name of the file and the line number
 	// associated with an error.
 	Location() (file string, line int)

@@ -5,10 +5,14 @@ import (
 )
 
 type (
-	Causer     = errors.Causer
-	Wrapper    = errors.Wrapper
-	Locationer = errors.Locationer
+	Causer  = errors.Causer
+	Wrapper = errors.Wrapper
+	Locator = errors.Locator
 )
+
+// Deprecated: Locationer is the old name for Locator,
+// kept for backward compatibility only.
+type Locationer = errors.Locationer
 
 // New returns a new error with the given error message and no cause. It
 // is a drop-in replacement for errors.New from the standard library.
@@ -81,7 +85,7 @@ func SetLocation(err error, callDepth int) {
 // 	[{filename:99: error one} {otherfile:55: cause of error one}]
 //
 // The details are found by type-asserting the error to
-// the Locationer, Causer and Wrapper interfaces.
+// the Locator, Causer and Wrapper interfaces.
 // Details of the underlying stack are found by
 // recursively calling Underlying when the
 // underlying error implements Wrapper.

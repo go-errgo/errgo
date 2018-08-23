@@ -139,7 +139,7 @@ func SetLocation(err error, callDepth int) {
 //			{otherfile:55: cause of error one}
 //		]
 //
-// The details are found by type-asserting the error to the Locationer,
+// The details are found by type-asserting the error to the Locator,
 // Causer and Wrapper interfaces. Details of the underlying stack are
 // found by recursively calling Underlying when the underlying error
 // implements Wrapper.
@@ -151,7 +151,7 @@ func Details(err error) string {
 	s = append(s, '[')
 	for {
 		s = append(s, "\n\t{"...)
-		if err, ok := err.(Locationer); ok {
+		if err, ok := err.(Locator); ok {
 			file, line := err.Location()
 			if file != "" {
 				s = append(s, file...)

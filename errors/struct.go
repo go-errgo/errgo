@@ -87,7 +87,7 @@ func (e *errorInfo) setLocation(callDepth int) {
 	}
 }
 
-// Location implements Locationer.
+// Location implements Locator.
 func (e *errorInfo) Location() (file string, line int) {
 	frames := runtime.CallersFrames(e.callerPC[:])
 	frame, ok := frames.Next()
