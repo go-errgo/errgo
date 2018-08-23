@@ -10,30 +10,55 @@ import (
 	"strings"
 	"testing"
 
-	gc "gopkg.in/check.v1"
-
 	"gopkg.in/errgo.v2/fmt/errors"
 )
 
-func Test(t *testing.T) {
-	gc.TestingT(t)
-}
-
-type errorsSuite struct{}
-
-var _ = gc.Suite(&errorsSuite{})
-
-func (*errorsSuite) TestNew(c *gc.C) {
-	err := errors.New("foo") //err TestNew
-	checkErr(c, err, nil, "foo", `[
-	{$TestNew$: foo}
+func TestNewf(t *testing.T) {
+	err := errors.Newf("foo %d", 99) //err TestNewf
+	checkErr(t, err, nil, "foo 99", `[
+	{$TestNewf$: foo 99}
 ]`, err)
 }
 
-func (*errorsSuite) TestNewf(c *gc.C) {
-	err := errors.Newf("foo %d", 99) //err TestNewf
-	checkErr(c, err, nil, "foo 99", `[
-	{$TestNewf$: foo 99}
+func TestNotef(t *testing.T) {
+	err0 := errors.Because(nil, someErr, "foo")  //err TestNotef#0
+	err := errors.Notef(err0, nil, "bar %d", 99) //err TestNotef#1
+	checkErr(t, err, err0, "bar 99: foo", `[
+	{$TestNotef#1$: bar 99}
+	{$TestNotef#0$: foo}
+]`, err)
+}
+
+func TestBecausef(t *testing.T) {
+	if got := errors.Cause(someErr); got != someErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", someErr, got, someErr)
+	}
+
+	causeErr := errors.New("cause error")
+	underlyingErr := errors.New("underlying error")               //err TestBecausef#1
+	err := errors.Becausef(underlyingErr, causeErr, "foo %d", 99) //err TestBecausef#2
+	if got := errors.Cause(err); got != causeErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, causeErr)
+	}
+
+	checkErr(t, err, underlyingErr, "foo 99: underlying error", `[
+	{$TestBecausef#2$: foo 99}
+	{$TestBecausef#1$: underlying error}
+]`, causeErr)
+
+	err = customError{err}
+	if got := errors.Cause(err); got != causeErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, causeErr)
+	}
+}
+
+// All the code from here on is identical to the code
+// in ../../errors/errors_test.go.
+
+func TestNew(t *testing.T) {
+	err := errors.New("foo") //err TestNew
+	checkErr(t, err, nil, "foo", `[
+	{$TestNew$: foo}
 ]`, err)
 }
 
@@ -50,13 +75,15 @@ func annotate2() error {
 	return err
 }
 
-func (*errorsSuite) TestNoteUsage(c *gc.C) {
+func TestNoteUsage(t *testing.T) {
 	err0 := annotate2()
 	err, ok := err0.(errors.Wrapper)
-	c.Assert(ok, gc.Equals, true)
+	if !ok {
+		t.Fatalf("%#v does not implement errors.Wrapper", err0)
+	}
 	underlying := err.Underlying()
 	checkErr(
-		c, err0, underlying,
+		t, err0, underlying,
 		"annotate2: annotate1: some error",
 		`[
 	{$annotate2$: annotate2}
@@ -66,133 +93,132 @@ func (*errorsSuite) TestNoteUsage(c *gc.C) {
 		err0)
 }
 
-func (*errorsSuite) TestWrap(c *gc.C) {
+func TestWrap(t *testing.T) {
 	err0 := errors.Because(nil, someErr, "foo") //err TestWrap#0
 	err := errors.Wrap(err0)                    //err TestWrap#1
-	checkErr(c, err, err0, "foo", `[
+	checkErr(t, err, err0, "foo", `[
 	{$TestWrap#1$: }
 	{$TestWrap#0$: foo}
 ]`, err)
 
 	err = errors.Wrap(nil)
-	c.Assert(err, gc.Equals, nil)
+	if err != nil {
+		t.Fatalf("Wrap(nil); got %#v want nil", err)
+	}
 }
 
-func (*errorsSuite) TestNoteWithNilError(c *gc.C) {
-	c.Assert(errors.Note(nil, nil, "annotation"), gc.Equals, nil)
+func TestNoteWithNilError(t *testing.T) {
+	if got := errors.Note(nil, nil, "annotation"); got != nil {
+		t.Fatalf("note of nil; got %#v want nil", got)
+	}
 }
 
-func (*errorsSuite) TestNote(c *gc.C) {
+func TestNote(t *testing.T) {
 	err0 := errors.Because(nil, someErr, "foo") //err TestNote#0
 	err := errors.Note(err0, nil, "bar")        //err TestNote#1
-	checkErr(c, err, err0, "bar: foo", `[
+	checkErr(t, err, err0, "bar: foo", `[
 	{$TestNote#1$: bar}
 	{$TestNote#0$: foo}
 ]`, err)
 
 	err = errors.Note(err0, errors.Is(someErr), "bar") //err TestNote#2
-	checkErr(c, err, err0, "bar: foo", `[
+	checkErr(t, err, err0, "bar: foo", `[
 	{$TestNote#2$: bar}
 	{$TestNote#0$: foo}
 ]`, someErr)
 
 	err = errors.Note(err0, func(error) bool { return false }, "") //err TestNote#3
-	checkErr(c, err, err0, "foo", `[
+	checkErr(t, err, err0, "foo", `[
 	{$TestNote#3$: }
 	{$TestNote#0$: foo}
 ]`, err)
 }
 
-func (*errorsSuite) TestNotef(c *gc.C) {
-	err0 := errors.Because(nil, someErr, "foo")  //err TestNotef#0
-	err := errors.Notef(err0, nil, "bar %d", 99) //err TestNotef#1
-	checkErr(c, err, err0, "bar 99: foo", `[
-	{$TestNotef#1$: bar 99}
-	{$TestNotef#0$: foo}
-]`, err)
-}
-
-func (*errorsSuite) TestCause(c *gc.C) {
-	c.Assert(errors.Cause(someErr), gc.Equals, someErr)
+func TestCause(t *testing.T) {
+	if got := errors.Cause(someErr); got != someErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", someErr, got, someErr)
+	}
 
 	causeErr := errors.New("cause error")
 	underlyingErr := errors.New("underlying error")          //err TestCause#1
 	err := errors.Because(underlyingErr, causeErr, "foo 99") //err TestCause#2
-	c.Assert(errors.Cause(err), gc.Equals, causeErr)
+	if got := errors.Cause(err); got != causeErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, causeErr)
+	}
 
-	checkErr(c, err, underlyingErr, "foo 99: underlying error", `[
+	checkErr(t, err, underlyingErr, "foo 99: underlying error", `[
 	{$TestCause#2$: foo 99}
 	{$TestCause#1$: underlying error}
 ]`, causeErr)
 
 	err = customError{err}
-	c.Assert(errors.Cause(err), gc.Equals, causeErr)
+	if got := errors.Cause(err); got != causeErr {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, causeErr)
+	}
 }
 
-func (*errorsSuite) TestBecausef(c *gc.C) {
-	c.Assert(errors.Cause(someErr), gc.Equals, someErr)
-
-	causeErr := errors.New("cause error")
-	underlyingErr := errors.New("underlying error")               //err TestBecausef#1
-	err := errors.Becausef(underlyingErr, causeErr, "foo %d", 99) //err TestBecausef#2
-	c.Assert(errors.Cause(err), gc.Equals, causeErr)
-
-	checkErr(c, err, underlyingErr, "foo 99: underlying error", `[
-	{$TestBecausef#2$: foo 99}
-	{$TestBecausef#1$: underlying error}
-]`, causeErr)
-}
-
-func (*errorsSuite) TestBecauseWithNoMessage(c *gc.C) {
+func TestBecauseWithNoMessage(t *testing.T) {
 	cause := errors.New("cause")
 	err := errors.Because(nil, cause, "")
-	c.Assert(err, gc.ErrorMatches, "cause")
-	c.Assert(errors.Cause(err), gc.Equals, cause)
+	if err == nil || err.Error() != "cause" {
+		t.Fatalf(`unexpected error; want "cause" got %q`, err)
+	}
+	if got := errors.Cause(err); got != cause {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, cause)
+	}
 }
 
-func (*errorsSuite) TestBecauseWithUnderlyingButNoMessage(c *gc.C) {
+func TestBecauseWithUnderlyingButNoMessage(t *testing.T) {
 	err := errors.New("something")
 	cause := errors.New("cause")
 	err = errors.Because(err, cause, "")
-	c.Assert(err, gc.ErrorMatches, "something")
-	c.Assert(errors.Cause(err), gc.Equals, cause)
+	if err == nil || err.Error() != "something" {
+		t.Fatalf(`unexpected error; want "cause" got %q`, err)
+	}
+	if got := errors.Cause(err); got != cause {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, cause)
+	}
 }
 
-func (*errorsSuite) TestBecauseWithAllZeroArgs(c *gc.C) {
+func TestBecauseWithAllZeroArgs(t *testing.T) {
 	err := errors.Because(nil, nil, "")
-	c.Assert(err, gc.Equals, nil)
+	if err != nil {
+		t.Fatalf("Because with all zero args; got %#v want nil", err)
+	}
 }
 
-func (*errorsSuite) TestDetails(c *gc.C) {
-	c.Assert(errors.Details(nil), gc.Equals, "[]")
+func TestDetails(t *testing.T) {
+	if got, want := errors.Details(nil), "[]"; got != want {
+		t.Fatalf("errors.Details(nil); got %q want %q", got, want)
+	}
 
 	otherErr := fmt.Errorf("other")
-	checkErr(c, otherErr, nil, "other", `[
+	checkErr(t, otherErr, nil, "other", `[
 	{other}
 ]`, otherErr)
 
 	err0 := customError{errors.New("foo")} //err TestDetails#0
-	checkErr(c, err0, nil, "foo", `[
+	checkErr(t, err0, nil, "foo", `[
 	{$TestDetails#0$: foo}
 ]`, err0)
 
 	err1 := customError{errors.Note(err0, nil, "bar")} //err TestDetails#1
-	checkErr(c, err1, err0, "bar: foo", `[
+	checkErr(t, err1, err0, "bar: foo", `[
 	{$TestDetails#1$: bar}
 	{$TestDetails#0$: foo}
 ]`, err1)
 
 	err2 := errors.Wrap(err1) //err TestDetails#2
-	checkErr(c, err2, err1, "bar: foo", `[
+	checkErr(t, err2, err1, "bar: foo", `[
 	{$TestDetails#2$: }
 	{$TestDetails#1$: bar}
 	{$TestDetails#0$: foo}
 ]`, err2)
 }
 
-func (*errorsSuite) TestSetLocation(c *gc.C) {
+func TestSetLocation(t *testing.T) {
 	err := customNewError() //err TestSetLocation#0
-	checkErr(c, err, nil, "custom", `[
+	checkErr(t, err, nil, "custom", `[
 	{$TestSetLocation#0$: custom}
 ]`, err)
 }
@@ -203,17 +229,30 @@ func customNewError() error {
 	return err
 }
 
-func checkErr(c *gc.C, err, underlying error, msg string, details string, cause error) {
-	c.Assert(err, gc.NotNil)
-	c.Assert(err.Error(), gc.Equals, msg)
-	if err, ok := err.(errors.Wrapper); ok {
-		c.Assert(err.Underlying(), gc.Equals, underlying)
-	} else {
-		c.Assert(underlying, gc.Equals, nil)
+func checkErr(t *testing.T, err, underlying error, msg string, details string, cause error) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("error is unexpectedly nil")
 	}
-	c.Assert(errors.Cause(err), gc.Equals, cause)
+	if got, want := err.Error(), msg; got != want {
+		t.Fatalf("unexpected message; got %q want %q", got, want)
+	}
+	if err, ok := err.(errors.Wrapper); ok {
+		if got, want := err.Underlying(), underlying; got != want {
+			t.Fatalf("unexpected underlying error; got %#v want %#v", got, want)
+		}
+	} else {
+		if underlying != nil {
+			t.Fatalf("underlying error should be nil; got %#v", underlying)
+		}
+	}
+	if got := errors.Cause(err); got != cause {
+		t.Fatalf("Cause(%#v); got %#v want %#v", err, got, cause)
+	}
 	wantDetails := replaceLocations(details)
-	c.Assert(errors.Details(err), gc.Equals, wantDetails)
+	if got := errors.Details(err); got != wantDetails {
+		t.Fatalf("unexpected details; got %q want %q", got, wantDetails)
+	}
 }
 
 func replaceLocations(s string) string {
