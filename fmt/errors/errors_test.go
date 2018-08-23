@@ -267,7 +267,7 @@ type customError struct {
 }
 
 func (e customError) Location() (string, int) {
-	if err, ok := e.error.(errors.Locationer); ok {
+	if err, ok := e.error.(errors.Locator); ok {
 		return err.Location()
 	}
 	return "", 0
