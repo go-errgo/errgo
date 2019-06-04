@@ -58,6 +58,12 @@ func (e *Err) Cause() error {
 	return e.Cause_
 }
 
+// Unwrap makes Err compatible with the go 1.13 standard library's
+// errors.Unwrap function, it has identical behaviour to Cause.
+func (e *Err) Unwrap() error {
+	return e.Cause()
+}
+
 // Message returns the top level error message.
 func (e *Err) Message() string {
 	return e.Message_
