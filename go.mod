@@ -1,3 +1,3 @@
-module github.com/eventials/errgo.v1
+module github.com/eventials/errgo
 
 require github.com/frankban/quicktest v1.2.2
